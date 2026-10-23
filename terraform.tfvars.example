@@ -1,0 +1,20 @@
+aws_account_id = "068657603153"
+aws_region     = "us-west-1"
+project_name   = "drify"
+environment    = "prod"
+
+ec2_role_name             = "ssm-iam-role"
+ec2_instance_profile_name = "ssm-iam-role"
+app_instance_type         = "t3.xlarge"
+runner_instance_type      = "t3.medium"
+
+api_domain   = "prod-api.drify.com"
+rider_domain = "prod-rider.drify.com"
+admin_domain = "prod-admin.drify.com"
+
+postgres_instance_class  = "db.t3.small"
+postgres_master_username = "drifyadmin"
+postgres_database_name   = "drifyv2"
+
+skip_final_snapshot = false
+deletion_protection = true

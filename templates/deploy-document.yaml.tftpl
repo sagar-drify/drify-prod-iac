@@ -1,0 +1,82 @@
+schemaVersion: "2.2"
+description: Deploy a Drify backend build from S3 and reload it under PM2.
+parameters:
+  App:
+    type: String
+    allowedValues: [customer, rider, admin]
+  ArtifactKey:
+    type: String
+    allowedPattern: "^(customer|rider|admin)/[0-9a-f]{7,40}\\.tgz$"
+  Release:
+    type: String
+    allowedPattern: "^[0-9a-f]{7,40}$"
+  RunMigrations:
+    type: String
+    default: "false"
+    allowedValues: ["true", "false"]
+mainSteps:
+  - action: aws:runShellScript
+    name: deploy
+    inputs:
+      timeoutSeconds: "900"
+      runCommand:
+        - |
+          set -euo pipefail
+          export PATH=/usr/local/bin:/usr/bin:/bin
+          APP="{{ App }}"
+          KEY="{{ ArtifactKey }}"
+          RELEASE="{{ Release }}"
+          MIGRATE="{{ RunMigrations }}"
+          BASE=/opt/drify/$APP
+          STAGE=$BASE/stage
+          LIVE=$BASE/app
+
+          run_as_drify() {
+            sudo -u drify env HOME=/opt/drify PATH=/usr/local/bin:/usr/bin:/bin bash -c "$1"
+          }
+
+          test -f /var/lib/drify-bootstrap-complete
+
+          rm -rf "$STAGE"
+          mkdir -p "$STAGE" "$LIVE" "$BASE/artifacts"
+          aws s3 cp "s3://${bucket}/$KEY" "$BASE/artifacts/$RELEASE.tgz" --region ${region} --only-show-errors
+          tar -xzf "$BASE/artifacts/$RELEASE.tgz" -C "$STAGE"
+          aws s3 cp "s3://${bucket}/env/$APP.env" "$STAGE/.env" --region ${region} --only-show-errors
+          chmod 600 "$STAGE/.env"
+
+          rsync -a --delete --exclude backups/ "$STAGE/" "$LIVE/"
+          rm -rf "$STAGE"
+          echo "$RELEASE" > "$BASE/RELEASE"
+          chown -R drify:drify "$BASE"
+          ls -1t "$BASE"/artifacts/*.tgz | tail -n +6 | xargs -r rm -f
+
+          case "$APP" in
+            customer)
+              if [ "$MIGRATE" = "true" ]; then
+                run_as_drify "cd $LIVE && npm run db:deploy"
+              fi
+              run_as_drify "cd $LIVE && pm2 startOrReload ecosystem.config.cjs --env production --update-env"
+              NAMES=$(run_as_drify "cd $LIVE && node -e \"console.log(require('./ecosystem.config.cjs').apps.map(a => a.name).join(' '))\"")
+              ;;
+            rider|admin)
+              run_as_drify "cd $LIVE && if pm2 describe drify-$APP >/dev/null 2>&1; then pm2 reload drify-$APP --update-env; else pm2 start src/server.js --name drify-$APP --cwd $LIVE --time; fi"
+              NAMES="drify-$APP"
+              ;;
+          esac
+          run_as_drify "pm2 save"
+
+          sleep 15
+          run_as_drify "pm2 ls"
+          FAILED=""
+          for NAME in $NAMES; do
+            STATUS=$(run_as_drify "pm2 jlist" | jq -r --arg n "$NAME" '[.[] | select(.name == $n) | .pm2_env.status] | first // "missing"')
+            if [ "$STATUS" != "online" ]; then
+              FAILED="$FAILED $NAME:$STATUS"
+            fi
+          done
+          if [ -n "$FAILED" ]; then
+            echo "Release $RELEASE deployed, but these processes are not online:$FAILED"
+            echo "Check: sudo -u drify pm2 logs <name> --lines 100"
+            exit 1
+          fi
+          echo "Release $RELEASE of $APP is online."
