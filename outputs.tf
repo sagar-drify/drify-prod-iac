@@ -31,10 +31,6 @@ output "acm_validation_records" {
   }
 }
 
-output "runner_instance_id" {
-  value = aws_instance.runner.id
-}
-
 output "artifact_bucket" {
   value = aws_s3_bucket.artifacts.bucket
 }

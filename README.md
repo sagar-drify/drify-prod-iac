@@ -6,13 +6,15 @@ account (`allowed_account_ids`).
 ## Layout
 
 - VPC `172.30.0.0/16`: three public subnets, two private subnets, no NAT gateway.
-- App EC2 (`t3.xlarge`, Elastic IP): Nginx, Node 22 with PM2, plus RabbitMQ and
+- App EC2 (`t3.large`, Elastic IP): Nginx, Node 22 with PM2, plus RabbitMQ and
   Redis 7.2 in Docker, both bound to `127.0.0.1`. Docker Hub has no 7.1 image. Runs the 15 customer processes
-  (`ecosystem.config.cjs`), rider on `5001`, admin on `5002`. Only ports 80 and
-  443 are open.
-- Runner EC2 (`t3.medium`): self-hosted GitHub Actions runner for
-  `sagar-drify/drify-v2`, labels `drify` and `prod`. No inbound ports.
-- Both servers use the existing `ssm-iam-role`; Terraform adds one inline
+  (`ecosystem.config.cjs`), rider on `5001`, admin on `5002`. The GitHub Actions
+  runner for `sagar-drify/drify-v2` also lives here (`drify-prod-runner-app`,
+  labels `drify` and `prod`, systemd user `runner`, `/opt/actions-runner`).
+  Replacing this instance does not register a new runner. `templates/runner-user-data.sh`
+  only installs the packages; registration against the repository is done once.
+  Only ports 80 and 443 are open.
+- The app server uses the existing `ssm-iam-role`; Terraform adds one inline
   policy, `drify-prod-deploy`. Access is through SSM Session Manager, not SSH.
 - Private RDS PostgreSQL `db.t3.small` (database `drifyv2`), reachable only
   from the app server. Redis runs on that same server, not ElastiCache.
@@ -36,10 +38,13 @@ third-party keys there; build artifacts expire after 30 days, these files do not
 
 ## Deploy flow
 
-1. Push to `master_customer`, `master_rider`, or `master_admin`.
-2. The runner installs and builds, then uploads a tarball to
+Deploys do not run on push. In GitHub Actions, choose the branch and run the
+workflow by hand.
+
+1. Run the workflow for `master_customer`, `master_rider`, or `master_admin`.
+2. The runner on the app server installs and builds, then uploads a tarball to
    `drify-prod-deploy-artifacts-068657603153`.
-3. The runner calls the `drify-prod-deploy` SSM document on the app server,
+3. The runner calls the `drify-prod-deploy` SSM document on the same server,
    which copies `.env` from S3, syncs the code into
    `/opt/drify/<app>/app`, reloads PM2, and fails if a process is not online.
 

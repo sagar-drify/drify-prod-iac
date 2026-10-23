@@ -36,23 +36,6 @@ resource "aws_security_group" "app" {
   }
 }
 
-resource "aws_security_group" "runner" {
-  name_prefix = "${local.name}-runner-"
-  description = "GitHub Actions runner: outbound only, managed through SSM"
-  vpc_id      = aws_vpc.main.id
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 resource "aws_instance" "app" {
   ami                    = data.aws_ssm_parameter.al2023.value
   instance_type          = var.app_instance_type
@@ -103,36 +86,5 @@ resource "aws_eip" "app" {
 
   tags = {
     Name = "${local.name}-app"
-  }
-}
-
-resource "aws_instance" "runner" {
-  ami                    = data.aws_ssm_parameter.al2023.value
-  instance_type          = var.runner_instance_type
-  subnet_id              = aws_subnet.public["public_b"].id
-  vpc_security_group_ids = [aws_security_group.runner.id]
-  iam_instance_profile   = data.aws_iam_instance_profile.ec2.name
-
-  user_data = file("${path.module}/templates/runner-user-data.sh")
-
-  metadata_options {
-    http_tokens   = "required"
-    http_endpoint = "enabled"
-  }
-
-  root_block_device {
-    volume_size           = 40
-    volume_type           = "gp3"
-    encrypted             = true
-    delete_on_termination = true
-  }
-
-  tags = {
-    Name = "${local.name}-github-runner"
-    Role = "github-runner"
-  }
-
-  lifecycle {
-    ignore_changes = [ami, user_data]
   }
 }

@@ -35,15 +35,9 @@ variable "ec2_instance_profile_name" {
 }
 
 variable "app_instance_type" {
-  description = "Runs the 15 customer processes, rider, admin, Nginx and RabbitMQ."
+  description = "Runs Nginx, the Node apps, Redis, RabbitMQ, and the GitHub Actions runner."
   type        = string
-  default     = "t3.xlarge"
-}
-
-variable "runner_instance_type" {
-  description = "Self-hosted GitHub Actions runner that builds and deploys."
-  type        = string
-  default     = "t3.medium"
+  default     = "t3.large"
 }
 
 variable "node_version" {
