@@ -31,14 +31,10 @@ resource "aws_security_group" "alb" {
   }
 }
 
-resource "aws_acm_certificate" "app" {
-  domain_name               = var.api_domain
-  subject_alternative_names = [var.rider_domain, var.admin_domain]
-  validation_method         = "DNS"
-
-  lifecycle {
-    create_before_destroy = true
-  }
+data "aws_acm_certificate" "app" {
+  domain      = "*.drify.com"
+  statuses    = ["ISSUED"]
+  most_recent = true
 }
 
 resource "aws_lb" "app" {
@@ -97,7 +93,7 @@ resource "aws_lb_listener" "https" {
   port              = 443
   protocol          = "HTTPS"
   ssl_policy        = "ELBSecurityPolicy-TLS13-1-2-2021-06"
-  certificate_arn   = aws_acm_certificate.app.arn
+  certificate_arn   = data.aws_acm_certificate.app.arn
 
   default_action {
     type             = "forward"

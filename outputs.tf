@@ -20,15 +20,9 @@ output "alb_zone_id" {
   value = aws_lb.app.zone_id
 }
 
-output "acm_validation_records" {
-  description = "Add these CNAMEs at the drify.com DNS host. The HTTPS listener stays pending until ACM sees them."
-  value = {
-    for dvo in aws_acm_certificate.app.domain_validation_options : dvo.domain_name => {
-      name  = dvo.resource_record_name
-      type  = dvo.resource_record_type
-      value = dvo.resource_record_value
-    }
-  }
+output "certificate_arn" {
+  description = "Issued wildcard certificate attached to the HTTPS listener."
+  value       = data.aws_acm_certificate.app.arn
 }
 
 output "artifact_bucket" {

@@ -60,9 +60,8 @@ sudo -u drify -i pm2 logs <name> --lines 100
 ```
 
 Public domains are `prod-api.drify.com`, `prod-rider.drify.com`, and
-`prod-admin.drify.com`. Point each one at the load balancer DNS name. ACM
-validates the certificate through the CNAME records in
-`terraform output acm_validation_records`. `drify.com` is not hosted in this
+`prod-admin.drify.com`. Point each one at the load balancer DNS name. HTTPS
+uses the issued `*.drify.com` certificate. `drify.com` is not hosted in this
 account, so those DNS records are added at the existing DNS provider. The old
 names `api.drify.com`, `rider.drify.com`, and `admin-api.drify.com` are not
 used.
